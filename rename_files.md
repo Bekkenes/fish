@@ -4,7 +4,7 @@ A Fish shell function to **mass rename files** by removing leading numbers, dots
 
 ## Features
 ✅ Supports any file extension.
-✅ Removes **leading numbers, dots, and spaces** while keeping the rest of the filename intact.
+✅ Removes **leading track numbers** (`01. `, `01 `, `01 - `) while keeping the rest of the filename intact.
 ✅ **Dry-run mode** to preview changes before renaming.
 ✅ Safe and efficient bulk renaming.
 ✅ **Color-coded output** for better readability.
@@ -33,13 +33,23 @@ A Fish shell function to **mass rename files** by removing leading numbers, dots
         end
     
         for file in *.$ext
-            set new_name (string replace -r '^\d+\.\s*' '' -- "$file")
+            # Only a number followed by a separator ("01. ", "01 ", "01 - ")
+            # is removed, so a name like "1942.nes" is left alone.
+            set new_name (string replace -r '^\d+(\s*[-._]\s*|\s+)' '' -- "$file")
     
             if test "$file" != "$new_name"
+                if test -z "$new_name" -o "$new_name" = ".$ext" -o "$new_name" = "$ext"
+                    echo "Skipping '$file': nothing left after removing the number"
+                    continue
+                end
+                if test -e "$new_name"
+                    echo "Skipping '$file': '$new_name' already exists"
+                    continue
+                end
                 if test $dry_run -eq 1
                     echo (set_color red)"Would rename: '$file'" (set_color normal)" -> "(set_color green)"'$new_name'" (set_color normal)
                 else
-                    mv "$file" "$new_name"
+                    mv -n -- "$file" "$new_name"
                     echo (set_color red)"Renamed: '$file'" (set_color normal)" -> "(set_color green)"'$new_name'" (set_color normal)
                 end
             end
@@ -92,6 +102,8 @@ Would rename: '03. Metroid (USA).nes' -> 'Metroid (USA).nes'
 ## Notes
 - Works with any file extension (replace `nes` with any other extension like `txt`, `mp3`, etc.).
 - Does **not** rename files that don’t start with numbers.
+- Never overwrites: if the new name already exists, the file is skipped.
+- Names that are just a number (e.g. `1942.nes`) are left alone.
 - Safe to use since dry-run mode allows previewing changes before renaming.
 - **Color-coded output:**
   - **Red**: Old filename
